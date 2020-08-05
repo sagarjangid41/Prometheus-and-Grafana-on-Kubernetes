@@ -1,33 +1,58 @@
-apiVersion: apps/v1
-kind: Deployment
-
+apiVersion: v1
+kind: Service
 metadata:
-  name: prometheus-deployment
+  name: prometheus-service
   labels:
     app: prometheus
-    purpose: example
 spec:
-  replicas: 2
+  ports:
+    - port: 9090
+  selector:
+    app: prometheus
+    tier: prom
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pv-claim
+  labels:
+    app: prometheus
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 60Gi
+---
+apiVersion: apps/v1 # for versions before 1.9.0 use apps/v1beta2
+kind: Deployment
+metadata:
+  name: prometheus
+  labels:
+    app: prometheus
+spec:
   selector:
     matchLabels:
       app: prometheus
-      purpose: example
+      tier: prom
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: prometheus
-        purpose: example
+        tier: prom
     spec:
       containers:
-      - name: prometheus-example
-        image: prom/prometheus
-        volumeMounts:
-          - name: config-volume
-            mountPath: /etc/prometheus/prometheus.yml
-            subPath: prometheus.yml
+      - image: vimal13/prometheus
+        name: prom
         ports:
         - containerPort: 9090
+          name: prom
+        volumeMounts:
+        - name: persistent-storage
+          mountPath: /var/lib/prometheus
       volumes:
-        - name: config-volume
-          configMap:
-           name:  prometheus-config-map
+      - name: persistent-storage
+        persistentVolumeClaim:
+          claimName: pv-claim
